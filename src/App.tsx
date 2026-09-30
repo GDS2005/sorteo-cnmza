@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Header from "./components/Header";
 import ImportPanel from "./components/ImportPanel";
 import DrawPanel from "./components/DrawPanel";
@@ -7,6 +7,62 @@ import { pickWinners, randomInt } from "./lib/random";
 import type { Round } from "./types";
 
 const DRAW_MS = 2800;
+const STORAGE_KEY = "colegio-notarial-raffle-v1";
+
+interface RaffleState {
+  original: string[];
+  pool: string[];
+  rounds: Round[];
+  current: string[];
+  alreadyWon: string[];
+  count: number;
+}
+
+const EMPTY_STATE: RaffleState = { original: [], pool: [], rounds: [], current: [], alreadyWon: [], count: 1 };
+
+function uniqueNames(names: string[]): string[] {
+  const seen = new Set<string>();
+  return names.filter((name) => {
+    const key = name.trim().replace(/\s+/g, " ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function readSavedState(): RaffleState {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return EMPTY_STATE;
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== "object") return EMPTY_STATE;
+    const saved = value as Partial<RaffleState>;
+    if (
+      !Array.isArray(saved.original) || !saved.original.every((name) => typeof name === "string") ||
+      !Array.isArray(saved.pool) || !saved.pool.every((name) => typeof name === "string") ||
+      !Array.isArray(saved.rounds) || !Array.isArray(saved.current) || !saved.current.every((name) => typeof name === "string") ||
+      !Array.isArray(saved.alreadyWon) || !saved.alreadyWon.every((name) => typeof name === "string") ||
+      typeof saved.count !== "number" || !Number.isFinite(saved.count)
+    ) return EMPTY_STATE;
+
+    const original = uniqueNames(saved.original);
+    const originalKeys = new Set(original.map((name) => name.toLowerCase()));
+    const alreadyWon = uniqueNames(saved.alreadyWon).filter((name) => originalKeys.has(name.toLowerCase()));
+    const wonKeys = new Set(alreadyWon.map((name) => name.toLowerCase()));
+    const pool = uniqueNames(saved.pool).filter((name) => originalKeys.has(name.toLowerCase()) && !wonKeys.has(name.toLowerCase()));
+    const rounds = saved.rounds.filter((round): round is Round =>
+      !!round && typeof round === "object" && typeof round.id === "number" && typeof round.time === "string" &&
+      Array.isArray(round.winners) && round.winners.every((name) => typeof name === "string"),
+    ).map((round) => ({
+      ...round,
+      winners: uniqueNames(round.winners).filter((name) => originalKeys.has(name.toLowerCase())),
+    }));
+    const current = uniqueNames(saved.current).filter((name) => wonKeys.has(name.toLowerCase()));
+    return { original, pool, rounds, current, alreadyWon, count: Math.max(1, Math.floor(saved.count)) };
+  } catch {
+    return EMPTY_STATE;
+  }
+}
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -18,45 +74,62 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 export default function App() {
-  const [original, setOriginal] = useState<string[]>([]); // list as imported
-  const [pool, setPool] = useState<string[]>([]);         // still eligible (winners are removed)
-  const [rounds, setRounds] = useState<Round[]>([]);      // session history
-  const [current, setCurrent] = useState<string[]>([]);   // winners of the latest draw
-  const [count, setCount] = useState(1);
+  const [raffle, setRaffle] = useState<RaffleState>(readSavedState);
   const [drawing, setDrawing] = useState(false);
   const [ticker, setTicker] = useState("");
 
-  const load = (names: string[]) => { setOriginal(names); setPool(names); setRounds([]); setCurrent([]); setCount(1); };
+  const { original, pool, rounds, current, alreadyWon, count } = raffle;
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(raffle));
+    } catch {
+      // Storage can be unavailable or full; the in-memory raffle remains usable.
+    }
+  }, [raffle]);
+
+  const load = (names: string[]) => {
+    const participants = uniqueNames(names);
+    setRaffle({ ...EMPTY_STATE, original: participants, pool: participants });
+  };
+  const clearWinners = () => {
+    if (drawing || current.length === 0 || !window.confirm("Are you sure you want to clear the current winners? They will remain excluded from future draws.")) return;
+    setRaffle((state) => ({ ...state, current: [] }));
+  };
 
   const reset = () => {
     if (drawing || !window.confirm("¿Reiniciar el sorteo? Se borrará el historial y se restaurará la lista original.")) return;
-    load(original);
+    setRaffle({ ...EMPTY_STATE, original, pool: original });
   };
 
   const newList = () => {
     if (drawing || !window.confirm("¿Cargar otra lista? Se descartará la sesión actual.")) return;
-    setOriginal([]); setPool([]); setRounds([]); setCurrent([]);
+    setRaffle(EMPTY_STATE);
   };
 
   const draw = () => {
     if (drawing || count < 1 || count > pool.length) return;
     const winners = pickWinners(pool, count); // chosen once, from the current pool only
     const snapshot = pool;
-    setDrawing(true); setCurrent([]);
+    setDrawing(true); setRaffle((state) => ({ ...state, current: [] }));
     const tick = window.setInterval(() => setTicker(snapshot[randomInt(snapshot.length)]), 70);
     window.setTimeout(() => {
       window.clearInterval(tick);
       const won = new Set(winners);
       const left = snapshot.filter((n) => !won.has(n)); // winners leave the pool for good
-      setPool(left);
-      setRounds((r) => [...r, { id: r.length + 1, time: new Date().toLocaleTimeString("es-AR"), winners }]);
-      setCurrent(winners);
-      setCount((c) => Math.max(1, Math.min(c, left.length)));
+      setRaffle((state) => ({
+        ...state,
+        pool: left,
+        rounds: [...state.rounds, { id: state.rounds.length + 1, time: new Date().toLocaleTimeString("es-AR"), winners }],
+        current: winners,
+        alreadyWon: uniqueNames([...state.alreadyWon, ...winners]),
+        count: Math.max(1, Math.min(state.count, left.length)),
+      }));
       setDrawing(false);
     }, DRAW_MS);
   };
 
-  const winnersTotal = original.length - pool.length;
+  const winnersTotal = alreadyWon.length;
 
   return (
     <div className="min-h-screen">
@@ -77,7 +150,7 @@ export default function App() {
                 <button onClick={newList} disabled={drawing} className="rounded-lg border border-brand px-4 py-2 font-semibold text-brand hover:bg-brand-soft disabled:opacity-40">Cargar otra lista</button>
               </div>
             </div>
-            <DrawPanel available={pool.length} count={count} setCount={setCount} drawing={drawing} ticker={ticker} winners={current} onDraw={draw} />
+            <DrawPanel available={pool.length} count={count} setCount={(value) => setRaffle((state) => ({ ...state, count: value }))} drawing={drawing} ticker={ticker} winners={current} onDraw={draw} onClearWinners={clearWinners} />
             <div className="grid gap-6 md:grid-cols-2">
               <RemainingList names={pool} />
               <HistoryList rounds={rounds} />

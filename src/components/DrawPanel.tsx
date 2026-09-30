@@ -1,10 +1,10 @@
 interface Props {
   available: number; count: number; setCount: (n: number) => void;
-  drawing: boolean; ticker: string; winners: string[]; onDraw: () => void;
+  drawing: boolean; ticker: string; winners: string[]; onDraw: () => void; onClearWinners: () => void;
 }
 const PRESETS = [1, 3, 5, 10];
 
-export default function DrawPanel({ available, count, setCount, drawing, ticker, winners, onDraw }: Props) {
+export default function DrawPanel({ available, count, setCount, drawing, ticker, winners, onDraw, onClearWinners }: Props) {
   const tooMany = count > available;
   return (
     <section className="rounded-xl border border-brand-line bg-white p-5 shadow-sm sm:p-6">
@@ -40,7 +40,10 @@ export default function DrawPanel({ available, count, setCount, drawing, ticker,
           </div>
         ) : winners.length > 0 ? (
           <>
-            <p className="mb-3 font-semibold text-brand">{winners.length === 1 ? "Ganador" : `${winners.length} ganadores`} de este sorteo</p>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="font-semibold text-brand">{winners.length === 1 ? "Ganador" : `${winners.length} ganadores`} de este sorteo</p>
+              <button onClick={onClearWinners} className="rounded-lg border border-brand px-4 py-2 font-semibold text-brand hover:bg-brand-soft">Limpiar Ganadores</button>
+            </div>
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {winners.map((w, i) => (
                 <li key={w} style={{ animationDelay: `${i * 120}ms` }}
