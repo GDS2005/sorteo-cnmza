@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import confetti from "canvas-confetti";
 import Header from "./components/Header";
 import ImportPanel from "./components/ImportPanel";
 import DrawPanel from "./components/DrawPanel";
@@ -8,6 +9,26 @@ import type { Round } from "./types";
 
 const DRAW_MS = 6000;
 const STORAGE_KEY = "colegio-notarial-raffle-v1";
+
+function celebrateWinners() {
+  const duration = 1800;
+  const end = Date.now() + duration;
+  const interval = window.setInterval(() => {
+    const timeLeft = end - Date.now();
+    if (timeLeft <= 0) {
+      window.clearInterval(interval);
+      return;
+    }
+    confetti({
+      particleCount: 45 * (timeLeft / duration),
+      spread: 70,
+      startVelocity: 35,
+      origin: { x: Math.random(), y: 0.6 },
+      colors: ["#1d4ed8", "#16a34a", "#f59e0b", "#e11d48"],
+      disableForReducedMotion: true,
+    });
+  }, 180);
+}
 
 interface RaffleState {
   original: string[];
@@ -126,6 +147,7 @@ export default function App() {
         count: Math.max(1, Math.min(state.count, left.length)),
       }));
       setDrawing(false);
+      celebrateWinners();
     }, DRAW_MS);
   };
 
