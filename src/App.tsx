@@ -6,7 +6,7 @@ import { HistoryList, RemainingList } from "./components/Lists";
 import { pickWinners, randomInt } from "./lib/random";
 import type { Round } from "./types";
 
-const DRAW_MS = 2800;
+const DRAW_MS = 6000;
 const STORAGE_KEY = "colegio-notarial-raffle-v1";
 
 interface RaffleState {

@@ -32,7 +32,7 @@ export function RemainingList({ names }: { names: string[] }) {
       </div>
       {copyError && <p role="alert" className="mt-2 text-sm text-red-700">{copyError}</p>}
       {names.length === 0 ? <p className="mt-3 text-slate-500">No quedan participantes.</p> : (
-        <ol className="mt-3 max-h-80 list-decimal space-y-1 overflow-y-auto pl-6 pr-2 text-slate-700 marker:text-slate-400">
+        <ol className="mt-3 max-h-80 list-decimal space-y-1 overflow-y-auto pl-10 pr-2 text-slate-700 marker:font-semibold marker:text-brand">
           {names.map((n) => <li key={n}>{n}</li>)}
         </ol>
       )}

@@ -3,6 +3,12 @@ interface Props {
   drawing: boolean; ticker: string; winners: string[]; onDraw: () => void; onClearWinners: () => void;
 }
 const PRESETS = [1, 3, 5, 10];
+const TICKER_BACKGROUNDS = ["bg-rose-700", "bg-emerald-700", "bg-amber-700", "bg-cyan-800"] as const;
+
+function tickerBackground(name: string) {
+  const hash = Array.from(name).reduce((sum, character) => sum + character.charCodeAt(0), 0);
+  return TICKER_BACKGROUNDS[hash % TICKER_BACKGROUNDS.length];
+}
 
 export default function DrawPanel({ available, count, setCount, drawing, ticker, winners, onDraw, onClearWinners }: Props) {
   const tooMany = count > available;
@@ -34,7 +40,7 @@ export default function DrawPanel({ available, count, setCount, drawing, ticker,
 
       <div className="mt-6 min-h-[11rem] rounded-xl bg-brand-soft p-4 sm:p-6" aria-live="polite">
         {drawing ? (
-          <div className="flex h-36 flex-col items-center justify-center rounded-xl bg-brand text-center text-white">
+          <div className={`flex h-36 flex-col items-center justify-center rounded-xl text-center text-white transition-colors duration-75 ${tickerBackground(ticker)}`}>
             <p className="text-sm opacity-80">Sorteando {count} {count === 1 ? "ganador" : "ganadores"}…</p>
             <p className="mt-2 max-w-full truncate px-4 text-3xl font-bold sm:text-4xl">{ticker}</p>
           </div>
